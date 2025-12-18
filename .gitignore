@@ -1,0 +1,30 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+build/
+dist/
+*.egg-info/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+assets/
+.temp/
+build/
+
+# OS
+.Trash
+Thumbs.db
+
+# Logs
+*.log
+
+
+

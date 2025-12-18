@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daggerheart-cards"
+version = "0.1.0"
+description = "Beispiel-Python-3-Projekt mit einfachem CLI"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pypdf>=5.0.0",
+  "reportlab>=4.0.0",
+]
+authors = [{ name = "Your Name" }]
+keywords = ["python", "cli", "template"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.scripts]
+daggerheart-cards = "daggerheart_cards.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
