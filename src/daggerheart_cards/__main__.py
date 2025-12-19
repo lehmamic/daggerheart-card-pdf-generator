@@ -1,4 +1,4 @@
-"""Einfacher CLI-Einstiegspunkt für daggerheart_cards."""
+"""CLI entry point for daggerheart_cards."""
 from __future__ import annotations
 
 import argparse
@@ -9,20 +9,25 @@ from daggerheart_cards.layout import build_cards_pdf, find_assets_dir
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Daggerheart Cards – Karten-PDF mit 3x3-Layout erzeugen"
+        description="Daggerheart Cards – Generate printable card PDF with 3x3 layout"
     )
 
     parser.add_argument(
         "--assets-dir",
         type=str,
         default=None,
-        help="Pfad zum assets-Verzeichnis (Standard: <projektwurzel>/src/assets).",
+        help="Path to assets directory (default: <project_root>/src/assets).",
     )
     parser.add_argument(
         "--output",
         type=str,
-        default="build/cards-3x3.pdf",
-        help="Pfad zur Ausgabedatei (Standard: build/cards-3x3.pdf).",
+        default="build/daggerheart-cards.pdf",
+        help="Path to output file (default: build/daggerheart-cards.pdf).",
+    )
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="Disable PyMuPDF fallback (use only pypdf, useful for testing).",
     )
 
     return parser
@@ -38,8 +43,11 @@ def main(argv: list[str] | None = None) -> None:
         else find_assets_dir()
     )
     output_path = Path(args.output).resolve()
-    build_cards_pdf(output_path=output_path, assets_dir=assets_dir)
-    print(f"Karten-PDF erzeugt: {output_path}")
+    build_cards_pdf(
+        output_path=output_path, 
+        assets_dir=assets_dir,
+        use_fitz_fallback=not args.no_fallback,
+    )
 
 
 if __name__ == "__main__":
