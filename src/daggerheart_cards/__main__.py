@@ -12,11 +12,11 @@ from rich import box
 
 from daggerheart_cards.layout import (
     build_cards_pdf, 
-    collect_card_images, 
-    find_assets_dir, 
-    find_images_dir,
-    failed_pdfs,
+    collect_card_images,
+    print_failed_pdfs_report,
 )
+from daggerheart_cards.zip_reader import find_assets_dir, find_images_dir
+
 
 console = Console()
 
@@ -71,42 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def print_failed_pdfs_report() -> None:
-    """Print report of failed PDFs."""
-    if not failed_pdfs:
-        return
-        
-    console.print()
-    
-    fallback_used = [f for f in failed_pdfs if f.used_fallback]
-    completely_failed = [f for f in failed_pdfs if not f.used_fallback]
-    
-    if fallback_used:
-        console.print(f"[yellow]⚠ {len(fallback_used)} PDFs required PyMuPDF fallback (pypdf failed):[/yellow]")
-        fallback_table = Table(box=box.SIMPLE, border_style="yellow", show_header=True)
-        fallback_table.add_column("ZIP", style="dim")
-        fallback_table.add_column("PDF", style="white")
-        fallback_table.add_column("pypdf Error", style="yellow")
-        for f in fallback_used[:20]:
-            fallback_table.add_row(f.zip_name, f.pdf_name, f.error[:60] + "..." if len(f.error) > 60 else f.error)
-        if len(fallback_used) > 20:
-            fallback_table.add_row("...", f"[dim]and {len(fallback_used) - 20} more[/dim]", "")
-        console.print(fallback_table)
-    
-    if completely_failed:
-        console.print()
-        console.print(f"[red]✘ {len(completely_failed)} PDFs could not be processed at all:[/red]")
-        failed_table = Table(box=box.SIMPLE, border_style="red", show_header=True)
-        failed_table.add_column("ZIP", style="dim")
-        failed_table.add_column("PDF", style="white")
-        failed_table.add_column("Error", style="red")
-        for f in completely_failed:
-            failed_table.add_row(f.zip_name, f.pdf_name, f.error[:60] + "..." if len(f.error) > 60 else f.error)
-        console.print(failed_table)
-
-
 def run_extract(assets_dir: Path, use_fitz_fallback: bool) -> None:
-    """Run the extract command."""
+    """Run the extract command - extract images only."""
     console.print()
     console.print(Panel.fit(
         "[bold cyan]🖼️  Daggerheart Cards - Extract Images[/bold cyan]\n"
@@ -179,5 +145,3 @@ def main(argv: list[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-
-
