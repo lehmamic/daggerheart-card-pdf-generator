@@ -73,13 +73,21 @@ def find_assets_dir(start: Path | None = None) -> Path:
 def find_temp_dir(start: Path | None = None) -> Path:
     """
     Find (or create) a `.temp` folder in the project root directory.
-    Extracted images can be stored here for inspection.
     """
     base = (start or Path(__file__)).resolve()
     project_root = base.parents[2]
     temp_dir = project_root / ".temp"
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
+
+
+def find_images_dir(start: Path | None = None) -> Path:
+    """
+    Find (or create) the `.temp/images` folder for extracted card images.
+    """
+    images_dir = find_temp_dir(start) / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    return images_dir
 
 
 def collect_card_images(
@@ -138,7 +146,7 @@ def collect_card_images(
                     progress.update(task_id, advance=1, description=f"[cyan]Processing [bold]{Path(pdf_name).stem}[/bold]...")
                 
                 data = zf.read(pdf_name)
-                temp_dir = find_temp_dir()
+                images_dir = find_images_dir()
                 
                 # Try pypdf first (for image extraction)
                 pypdf_success = False
@@ -150,7 +158,7 @@ def collect_card_images(
                             try:
                                 img_path = _extract_main_image_to_temp(
                                     page=page,
-                                    temp_dir=temp_dir,
+                                    temp_dir=images_dir,
                                     zip_name=zip_path.stem,
                                     pdf_stem=Path(pdf_name).stem,
                                     page_index=page_index,
@@ -177,7 +185,7 @@ def collect_card_images(
                     try:
                         img_paths = _extract_images_with_fitz(
                             data=data,
-                            temp_dir=temp_dir,
+                            temp_dir=images_dir,
                             zip_name=zip_path.stem,
                             pdf_stem=Path(pdf_name).stem,
                         )
