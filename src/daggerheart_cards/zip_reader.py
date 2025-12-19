@@ -1,10 +1,15 @@
-"""ZIP file reading and PDF discovery functionality."""
+"""ZIP file reading and PDF/image discovery functionality."""
 from __future__ import annotations
 
+import shutil
 from io import BytesIO
 from pathlib import Path
 from typing import List, Iterator, Tuple
 import zipfile
+
+
+# Supported image extensions
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
 
 
 def find_assets_dir(start: Path | None = None) -> Path:
@@ -42,6 +47,11 @@ def find_images_dir(start: Path | None = None) -> Path:
     return images_dir
 
 
+def is_image_file(name: str) -> bool:
+    """Check if a filename has a supported image extension."""
+    return Path(name).suffix.lower() in IMAGE_EXTENSIONS
+
+
 def list_zip_files(assets_dir: Path) -> List[Path]:
     """
     List all ZIP files in the assets directory, sorted alphabetically.
@@ -53,6 +63,36 @@ def list_zip_files(assets_dir: Path) -> List[Path]:
         Sorted list of ZIP file paths
     """
     return sorted(assets_dir.glob("*.zip"))
+
+
+def list_pdf_files(assets_dir: Path) -> List[Path]:
+    """
+    List all PDF files directly in the assets directory, sorted alphabetically.
+    
+    Args:
+        assets_dir: Path to the assets directory
+        
+    Returns:
+        Sorted list of PDF file paths
+    """
+    return sorted(assets_dir.glob("*.pdf"))
+
+
+def list_image_files(assets_dir: Path) -> List[Path]:
+    """
+    List all image files directly in the assets directory, sorted alphabetically.
+    
+    Args:
+        assets_dir: Path to the assets directory
+        
+    Returns:
+        Sorted list of image file paths
+    """
+    images = []
+    for ext in IMAGE_EXTENSIONS:
+        images.extend(assets_dir.glob(f"*{ext}"))
+        images.extend(assets_dir.glob(f"*{ext.upper()}"))
+    return sorted(set(images))
 
 
 def list_pdfs_in_zip(zip_path: Path) -> List[str]:
@@ -79,6 +119,30 @@ def list_pdfs_in_zip(zip_path: Path) -> List[str]:
         )
 
 
+def list_images_in_zip(zip_path: Path) -> List[str]:
+    """
+    List all image files in a ZIP archive.
+    
+    Filters out:
+    - Directory entries (paths ending with /)
+    - macOS metadata files (__MACOSX/)
+    
+    Args:
+        zip_path: Path to the ZIP file
+        
+    Returns:
+        Sorted list of image file names within the ZIP
+    """
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        return sorted(
+            name
+            for name in zf.namelist()
+            if is_image_file(name)
+            and not name.endswith("/")
+            and not name.startswith("__MACOSX/")
+        )
+
+
 def count_pdfs_in_zips(zip_files: List[Path]) -> int:
     """
     Count total number of PDFs across all ZIP files.
@@ -95,6 +159,42 @@ def count_pdfs_in_zips(zip_files: List[Path]) -> int:
     return total
 
 
+def count_images_in_zips(zip_files: List[Path]) -> int:
+    """
+    Count total number of images across all ZIP files.
+    
+    Args:
+        zip_files: List of ZIP file paths
+        
+    Returns:
+        Total image count
+    """
+    total = 0
+    for zip_path in zip_files:
+        total += len(list_images_in_zip(zip_path))
+    return total
+
+
+def count_all_sources(assets_dir: Path) -> int:
+    """
+    Count total number of all card sources (PDFs in ZIPs, images in ZIPs,
+    direct PDFs, direct images).
+    
+    Args:
+        assets_dir: Path to the assets directory
+        
+    Returns:
+        Total count of all card sources
+    """
+    zip_files = list_zip_files(assets_dir)
+    return (
+        count_pdfs_in_zips(zip_files) +
+        count_images_in_zips(zip_files) +
+        len(list_pdf_files(assets_dir)) +
+        len(list_image_files(assets_dir))
+    )
+
+
 def read_pdf_from_zip(zip_path: Path, pdf_name: str) -> bytes:
     """
     Read a PDF file's contents from a ZIP archive.
@@ -108,6 +208,70 @@ def read_pdf_from_zip(zip_path: Path, pdf_name: str) -> bytes:
     """
     with zipfile.ZipFile(zip_path, "r") as zf:
         return zf.read(pdf_name)
+
+
+def read_image_from_zip(zip_path: Path, image_name: str) -> bytes:
+    """
+    Read an image file's contents from a ZIP archive.
+    
+    Args:
+        zip_path: Path to the ZIP file
+        image_name: Name of the image file within the ZIP
+        
+    Returns:
+        Raw bytes of the image file
+    """
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        return zf.read(image_name)
+
+
+def copy_image_to_temp(
+    image_path: Path,
+    output_dir: Path,
+    source_name: str,
+) -> Path:
+    """
+    Copy an image file to the temp directory with a prefixed name.
+    
+    Args:
+        image_path: Path to the source image file
+        output_dir: Directory to copy the image to
+        source_name: Prefix for the output filename (e.g., ZIP name or "direct")
+        
+    Returns:
+        Path to the copied image file
+    """
+    filename = f"{source_name}_{image_path.name}"
+    out_path = output_dir / filename
+    shutil.copy2(image_path, out_path)
+    return out_path
+
+
+def save_image_from_zip(
+    data: bytes,
+    output_dir: Path,
+    zip_name: str,
+    image_name: str,
+) -> Path:
+    """
+    Save an image from ZIP data to the output directory.
+    
+    Args:
+        data: Raw image bytes
+        output_dir: Directory to save the image to
+        zip_name: Name of the source ZIP (for filename prefix)
+        image_name: Original image filename
+        
+    Returns:
+        Path to the saved image file
+    """
+    # Use original extension
+    stem = Path(image_name).stem
+    suffix = Path(image_name).suffix
+    filename = f"{zip_name}_{stem}{suffix}"
+    out_path = output_dir / filename
+    out_path.write_bytes(data)
+    return out_path
 
 
 def iterate_pdfs(assets_dir: Path) -> Iterator[Tuple[Path, str, bytes]]:

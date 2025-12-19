@@ -1,10 +1,14 @@
 # Daggerheart Cards
 
-A Python tool to extract card images from PDFs inside ZIP files and generate printable 3x3 card sheet PDFs for the Daggerheart tabletop RPG.
+A Python tool to extract card images from various sources and generate printable 3x3 card sheet PDFs for the Daggerheart tabletop RPG.
 
 ## Features
 
-- 📦 Reads PDF files from ZIP archives
+- 📦 **Flexible input sources:**
+  - PDFs inside ZIP archives
+  - Images (PNG, JPG, etc.) inside ZIP archives
+  - PDFs directly in the assets folder
+  - Images directly in the assets folder
 - 🖼️ Extracts card images using pypdf (with PyMuPDF fallback for problematic PDFs)
 - 📄 Generates printable A4 PDF with 3x3 card layout
 - ✂️ Includes cut marks for easy trimming
@@ -32,7 +36,7 @@ pip install -e .
 
 ### Build Command (Default)
 
-Extract card images from PDFs and generate a printable PDF:
+Extract card images from all sources and generate a printable PDF:
 
 ```bash
 # Using default settings
@@ -46,7 +50,7 @@ daggerheart-cards build
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--assets-dir` | Path to assets directory containing ZIP files | `src/assets` |
+| `--assets-dir` | Path to assets directory | `src/assets` |
 | `--output` | Output PDF file path | `build/daggerheart-cards.pdf` |
 | `--no-fallback` | Disable PyMuPDF fallback (use only pypdf) | Fallback enabled |
 
@@ -57,7 +61,7 @@ daggerheart-cards build
 daggerheart-cards build --output my-cards.pdf
 
 # Custom assets directory
-daggerheart-cards build --assets-dir /path/to/zips
+daggerheart-cards build --assets-dir /path/to/cards
 
 # Disable PyMuPDF fallback (for testing)
 daggerheart-cards build --no-fallback
@@ -80,16 +84,32 @@ Images are saved to `.temp/images/` in the project root.
 | `--assets-dir` | Path to assets directory containing ZIP files | `src/assets` |
 | `--no-fallback` | Disable PyMuPDF fallback (use only pypdf) | Fallback enabled |
 
+## Supported Input Formats
+
+Place your card sources in the `src/assets` directory. The tool supports:
+
+| Source Type | Description |
+|-------------|-------------|
+| `*.zip` containing PDFs | Each PDF page becomes a card |
+| `*.zip` containing images | PNG, JPG, GIF, BMP, WEBP files |
+| `*.pdf` files (direct) | PDFs placed directly in assets folder |
+| Image files (direct) | PNG, JPG, GIF, BMP, WEBP in assets folder |
+
+All sources are processed alphabetically and combined into a single output PDF.
+
 ## Project Structure
 
 ```
 daggerheart-cards/
 ├── src/
-│   ├── assets/              # Place your ZIP files here
+│   ├── assets/              # Place your card sources here
+│   │   ├── *.zip            # ZIP files with PDFs or images
+│   │   ├── *.pdf            # Direct PDF files
+│   │   └── *.png/*.jpg      # Direct image files
 │   └── daggerheart_cards/   # Package source code
 │       ├── __init__.py
 │       ├── __main__.py      # CLI entry point
-│       ├── zip_reader.py    # ZIP file handling
+│       ├── zip_reader.py    # ZIP/PDF/image discovery
 │       ├── image_extractor.py  # PDF image extraction
 │       ├── pdf_generator.py # PDF generation
 │       └── layout.py        # High-level API
@@ -101,13 +121,15 @@ daggerheart-cards/
 
 ## How It Works
 
-1. **ZIP Reading**: Scans the assets directory for ZIP files
-2. **PDF Discovery**: Finds all PDF files within each ZIP (ignores macOS metadata)
-3. **Image Extraction**: 
-   - Tries pypdf first to extract embedded images
+1. **Source Discovery**: Scans the assets directory for:
+   - ZIP files (containing PDFs and/or images)
+   - PDF files (direct)
+   - Image files (direct)
+2. **Image Extraction**: 
+   - For PDFs: Tries pypdf first to extract embedded images
    - Falls back to PyMuPDF (fitz) for problematic PDFs
-   - PyMuPDF renders pages as high-quality images
-4. **PDF Generation**: Arranges cards in a 3x3 grid on A4 pages with cut marks
+   - For images: Copies them to temp folder
+3. **PDF Generation**: Arranges cards in a 3x3 grid on A4 pages with cut marks
 
 ## Dependencies
 

@@ -20,9 +20,15 @@ from .zip_reader import (
     find_temp_dir,
     find_images_dir,
     list_zip_files,
+    list_pdf_files,
+    list_image_files,
     list_pdfs_in_zip,
-    count_pdfs_in_zips,
+    list_images_in_zip,
+    count_all_sources,
     read_pdf_from_zip,
+    read_image_from_zip,
+    save_image_from_zip,
+    copy_image_to_temp,
 )
 from .image_extractor import (
     CardImage,
@@ -65,11 +71,17 @@ def collect_card_images(
     use_fitz_fallback: bool = True,
 ) -> List[CardImage]:
     """
-    Read all ZIP files in the assets folder and extract card images from PDFs.
+    Collect card images from all sources in the assets folder.
+    
+    Supports:
+    - PDFs inside ZIP files
+    - Images inside ZIP files
+    - PDFs directly in the assets folder
+    - Images directly in the assets folder
 
-    - Each ZIP file is treated as a group.
-    - All pages of PDFs within a ZIP come sequentially.
-    - ZIPs are processed in alphabetical order.
+    - Each source is treated as a group.
+    - All pages of PDFs come sequentially.
+    - Sources are processed in alphabetical order.
     
     Args:
         assets_dir: Path to assets directory
@@ -86,21 +98,19 @@ def collect_card_images(
         assets_dir = find_assets_dir()
 
     card_images: List[CardImage] = []
-    zip_files = list_zip_files(assets_dir)
+    images_dir = find_images_dir()
     
-    # Count total PDFs for progress
-    total_pdfs = count_pdfs_in_zips(zip_files)
+    # Count total sources for progress
+    total_sources = count_all_sources(assets_dir)
     
     task_id = None
     if progress is not None:
-        task_id = progress.add_task("[cyan]Extracting cards...", total=total_pdfs)
+        task_id = progress.add_task("[cyan]Extracting cards...", total=total_sources)
 
-    images_dir = find_images_dir()
-    
-    for zip_path in zip_files:
-        pdf_names = list_pdfs_in_zip(zip_path)
-        
-        for pdf_name in pdf_names:
+    # 1. Process ZIP files (PDFs and images)
+    for zip_path in list_zip_files(assets_dir):
+        # Process PDFs in ZIP
+        for pdf_name in list_pdfs_in_zip(zip_path):
             if progress is not None and task_id is not None:
                 progress.update(
                     task_id, 
@@ -131,7 +141,6 @@ def collect_card_images(
             
             # Track failures
             if failure is not None:
-                # Update failure with full names
                 failure.zip_name = zip_path.name
                 failure.pdf_name = pdf_name
                 failed_pdfs.append(failure)
@@ -141,6 +150,94 @@ def collect_card_images(
                         f"[yellow]⚠[/yellow] Skipping [bold]{pdf_name}[/bold] in {zip_path.name}: "
                         f"PDF could not be read"
                     )
+        
+        # Process images in ZIP
+        for image_name in list_images_in_zip(zip_path):
+            if progress is not None and task_id is not None:
+                progress.update(
+                    task_id, 
+                    advance=1, 
+                    description=f"[cyan]Copying [bold]{Path(image_name).stem}[/bold]..."
+                )
+            
+            data = read_image_from_zip(zip_path, image_name)
+            img_path = save_image_from_zip(
+                data=data,
+                output_dir=images_dir,
+                zip_name=zip_path.stem,
+                image_name=Path(image_name).name,
+            )
+            card_images.append(
+                CardImage(
+                    zip_name=zip_path.name,
+                    pdf_name=image_name,
+                    image_path=img_path,
+                )
+            )
+    
+    # 2. Process PDFs directly in assets folder
+    for pdf_path in list_pdf_files(assets_dir):
+        if progress is not None and task_id is not None:
+            progress.update(
+                task_id, 
+                advance=1, 
+                description=f"[cyan]Processing [bold]{pdf_path.stem}[/bold]..."
+            )
+        
+        data = pdf_path.read_bytes()
+        
+        # Extract images with fallback support
+        paths, failure = extract_images(
+            data=data,
+            output_dir=images_dir,
+            zip_name="direct",
+            pdf_stem=pdf_path.stem,
+            use_fitz_fallback=use_fitz_fallback,
+        )
+        
+        # Add extracted images to results
+        for img_path in paths:
+            card_images.append(
+                CardImage(
+                    zip_name="(direct)",
+                    pdf_name=pdf_path.name,
+                    image_path=img_path,
+                )
+            )
+        
+        # Track failures
+        if failure is not None:
+            failure.zip_name = "(direct)"
+            failure.pdf_name = pdf_path.name
+            failed_pdfs.append(failure)
+            
+            if not failure.used_fallback:
+                console.print(
+                    f"[yellow]⚠[/yellow] Skipping [bold]{pdf_path.name}[/bold]: "
+                    f"PDF could not be read"
+                )
+    
+    # 3. Process images directly in assets folder
+    for image_path in list_image_files(assets_dir):
+        if progress is not None and task_id is not None:
+            progress.update(
+                task_id, 
+                advance=1, 
+                description=f"[cyan]Copying [bold]{image_path.stem}[/bold]..."
+            )
+        
+        img_path = copy_image_to_temp(
+            image_path=image_path,
+            output_dir=images_dir,
+            source_name="direct",
+        )
+        card_images.append(
+            CardImage(
+                zip_name="(direct)",
+                pdf_name=image_path.name,
+                image_path=img_path,
+            )
+        )
 
     return card_images
 
@@ -223,8 +320,8 @@ def build_cards_pdf(
             use_fitz_fallback=use_fitz_fallback,
         )
         if not cards:
-            console.print("[red]✘[/red] No card images found in the ZIP files.")
-            raise RuntimeError("No card images found in the ZIP files.")
+            console.print("[red]✘[/red] No card images found in the assets folder.")
+            raise RuntimeError("No card images found in the assets folder.")
         
         # Sort cards alphabetically by zip name, then by pdf name
         cards = sorted(cards, key=lambda c: (c.zip_name.lower(), c.pdf_name.lower()))
